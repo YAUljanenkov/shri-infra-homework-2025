@@ -12,18 +12,6 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Log in to Yandex Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: cr.yandex
-          username: oauth
-          password: ${{ secrets.YANDEX_CR_PASSWORD }}
-      - run: |
-          IMAGE_TAG=cr.yandex/crpi9avbm6ms2f4euv0t/app:${{ github.event.inputs.release_version }}_latest
-          if ! docker pull $IMAGE_TAG; then
-            echo "Docker image $IMAGE_TAG does not exist"
-            exit 1
-          fi
       - name: Deploy to production VM
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -32,14 +20,14 @@ jobs:
           key: ${{ secrets.PROD_VM_SSH_KEY }}
           port: ${{ secrets.PROD_VM_PORT }}
           script: |
-            echo ${{ secrets.YANDEX_CR_PASSWORD }} | docker login \
-              --username oauth \
-              --password-stdin \
-             cr.yandex
-            sudo docker pull cr.yandex/crpi9avbm6ms2f4euv0t/app:${{ github.event.inputs.release_version }}_latest
-            sudo docker stop app || true
-            sudo docker rm app || true
-            sudo docker run -d --name app -p 8080:3000 cr.yandex/crpi9avbm6ms2f4euv0t/app:${{ github.event.inputs.release_version }}_latest
+            IMAGE_TAG=cr.yandex/crpi9avbm6ms2f4euv0t/app:${{ github.event.inputs.release_version }}_latest
+            if ! docker pull $IMAGE_TAG; then
+              echo "Docker image $IMAGE_TAG does not exist"
+              exit 1
+            fi
+            docker stop app || true
+            docker rm app || true
+            docker run -d --name app -p 8080:3000 $IMAGE_TAG
 
       - name: Find Release Issue
         id: find-issue
