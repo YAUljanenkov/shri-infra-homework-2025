@@ -32,6 +32,10 @@ jobs:
           key: ${{ secrets.PROD_VM_SSH_KEY }}
           port: ${{ secrets.PROD_VM_PORT }}
           script: |
+            echo ${{ secrets.YANDEX_CR_PASSWORD }} | docker login \
+              --username oauth \
+              --password-stdin \
+             cr.yandex
             sudo docker pull cr.yandex/crpi9avbm6ms2f4euv0t/app:${{ github.event.inputs.release_version }}_latest
             sudo docker stop app || true
             sudo docker rm app || true
