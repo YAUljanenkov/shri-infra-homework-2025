@@ -1,0 +1,71 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: 'Release version to deploy (e.g., 123)'
+        required: true
+        type: string
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Log in to Yandex Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: cr.yandex
+          username: oauth
+          password: ${{ secrets.YANDEX_CR_PASSWORD }}
+      - run: |
+          IMAGE_TAG=cr.yandex/crpi9avbm6ms2f4euv0t/app:${{ github.event.inputs.release_version }}_latest
+          if ! docker pull $IMAGE_TAG; then
+            echo "Docker image $IMAGE_TAG does not exist"
+            exit 1
+          fi
+      - name: Deploy to production VM
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.PROD_VM_HOST }}
+          username: ${{ secrets.PROD_VM_USERNAME }}
+          key: ${{ secrets.PROD_VM_SSH_KEY }}
+          port: ${{ secrets.PROD_VM_PORT }}
+          script: |
+            docker pull cr.yandex/crpi9avbm6ms2f4euv0t/app:${{ github.event.inputs.release_version }}_latest
+            docker stop app || true
+            docker rm app || true
+            docker run -d --name app -p 8080:3000 cr.yandex/crpi9avbm6ms2f4euv0t/app:${{ github.event.inputs.release_version }}_latest
+
+      - name: Find Release Issue
+        id: find-issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'all'
+            });
+            const releaseIssue = issues.find(issue => issue.title.includes(`Release v${{ github.event.inputs.release_version }}`));
+            return { issue_number: releaseIssue ? releaseIssue.number : null };
+
+      - name: Comment on Release Issue
+        if: steps.find-issue.outputs.result != '{}'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const commentBody = `
+              # Production Deployment for Release ${{ github.event.inputs.release_version }}
+
+              **Date**: ${new Date().toISOString().split('T')[0]}
+              **Deployed by**: ${{ github.actor }}
+              **Status**: Successfully deployed to production
+            `;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: ${{ fromJSON(steps.find-issue.outputs.result).issue_number }},
+              body: commentBody
+            });
