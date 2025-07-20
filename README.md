@@ -118,6 +118,7 @@ https://yandex.cloud/ru/docs/compute/quickstart/quick-create-linux#create-vm
     - [`docker build`](https://docs.docker.com/reference/cli/docker/image/build/)
     - [`docker run`](https://docs.docker.com/reference/cli/docker/container/run/)
 
+
 ## Запуск
 
 ```sh
